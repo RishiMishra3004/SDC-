@@ -136,21 +136,14 @@ lidar_i = 0
 ################################################################################################
 def measurement_update(sensor_var, p_cov_check, y_k, p_check, v_check, q_check):
     # 3.1 Compute Kalman Gain
-    r_cov = np.eye(3) * sensor_var
-    k_gain = p_cov_check.dot(h_jac.T).dot(np.linalg.inv(h_jac.dot(p_cov_check).dot(h_jac.T) + r_cov))
+
     # 3.2 Compute error state
-    x_error = k_gain.dot(y_k - p_check)
+
     # 3.3 Correct predicted state
-    p_hat = p_check + x_error[0:3]
-    v_hat = v_check + x_error[3:6]
-    q_hat = Quaternion(euler=x_error[6:9]).quat_mult_left(q_check)
+
     # 3.4 Compute corrected covariance
-    p_cov_hat = (np.eye(9) - k_gain.dot(h_jac)).dot(p_cov_check)
+
     return p_hat, v_hat, q_hat, p_cov_hat
-
-Quaternion(*q_est[0]).to_mat()
-
-aa = np.array([[0,0], [1,0],[0,1]])
 
 #### 5. Main Filter Loop #######################################################################
 
@@ -162,35 +155,14 @@ for k in range(1, imu_f.data.shape[0]):  # start at 1 b/c we have initial predic
     delta_t = imu_f.t[k] - imu_f.t[k - 1]
 
     # 1. Update state with IMU inputs
-    C_ns = Quaternion(*q_est[k-1]).to_mat()
-    
-    C_ns_d_f_km = np.dot(C_ns, imu_f.data[k-1])
-    
-    p_est[k] = p_est[k-1] + delta_t * v_est[k-1] + (delta_t**2) / 2 * (C_ns_d_f_km + g)
-    v_est[k] = v_est[k-1] + delta_t * (C_ns_d_f_km + g)
-    q_fr_w = Quaternion(axis_angle=imu_w.data[k-1] * delta_t)
-    q_est[k] = q_fr_w.quat_mult_right(q_est[k-1])
-    
+
     # 1.1 Linearize the motion model and compute Jacobians
-    f_ja_km = np.identity(9)
-    f_ja_km[0:3, 3:6] = np.identity(3) * delta_t
-    f_ja_km[3:6, 6:9] = -skew_symmetric(C_ns_d_f_km) * delta_t
-    
+
     # 2. Propagate uncertainty
-    q_cov_km = np.identity(6)
-    q_cov_km[0:3,0:3] *=  delta_t**2 * np.eye(3) * var_imu_f
-    q_cov_km[3:6, 3:6] *= delta_t**2 * np.eye(3) * var_imu_w
-    p_cov[k] = f_ja_km.dot(p_cov[k-1]).dot(f_ja_km.T) + l_jac.dot(q_cov_km).dot(l_jac.T)
+
     # 3. Check availability of GNSS and LIDAR measurements
-    if gnss_i < gnss.data.shape[0] and imu_f.t[k] == gnss.t[gnss_i]:
-        p_est[k], v_est[k], q_est[k], p_cov[k] = \
-            measurement_update(var_gnss, p_cov[k], gnss.data[gnss_i].T, p_est[k], v_est[k], q_est[k])
-        gnss_i += 1
-        
-    if lidar_i < lidar.t.shape[0] and lidar.t[lidar_i] == imu_f.t[k-1]:
-        p_est[k], v_est[k], q_est[k], p_cov[k] = \
-            measurement_update(var_lidar, p_cov[k], lidar.data[lidar_i].T, p_est[k], v_est[k], q_est[k])
-        lidar_i += 1
+
+    # Update states (save)
 
 #### 6. Results and Analysis ###################################################################
 
@@ -279,19 +251,19 @@ with open('pt1_submission.txt', 'w') as file:
     file.write(p1_str)
 
 # Pt. 2 submission
-p2_indices = [9000, 9400, 9800, 10200, 10600]
-p2_str = ''
-for val in p2_indices:
-    for i in range(3):
-        p2_str += '%.3f ' % (p_est[val, i])
-with open('pt2_submission.txt', 'w') as file:
-    file.write(p2_str)
+# p2_indices = [9000, 9400, 9800, 10200, 10600]
+# p2_str = ''
+# for val in p2_indices:
+#     for i in range(3):
+#         p2_str += '%.3f ' % (p_est[val, i])
+# with open('pt2_submission.txt', 'w') as file:
+#     file.write(p2_str)
 
 # Pt. 3 submission
-p3_indices = [6800, 7600, 8400, 9200, 10000]
-p3_str = ''
-for val in p3_indices:
-    for i in range(3):
-        p3_str += '%.3f ' % (p_est[val, i])
-with open('pt3_submission.txt', 'w') as file:
-    file.write(p3_str)
+# p3_indices = [6800, 7600, 8400, 9200, 10000]
+# p3_str = ''
+# for val in p3_indices:
+#     for i in range(3):
+#         p3_str += '%.3f ' % (p_est[val, i])
+# with open('pt3_submission.txt', 'w') as file:
+#     file.write(p3_str)
